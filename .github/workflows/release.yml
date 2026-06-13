@@ -44,9 +44,9 @@ jobs:
           ./.github/scripts/detect-stack.sh > /tmp/detect.json || echo '{"stack":"unknown"}' > /tmp/detect.json
           cat /tmp/detect.json
           stack=$(jq -r '.stack // "unknown"' /tmp/detect.json)
-          build_tool=$(jq -r '.build_tool // ""}' /tmp/detect.json)
-          entry_point=$(jq -r '.entry_point // ""}' /tmp/detect.json)
-          version=$(jq -r '.version // ""}' /tmp/detect.json)
+          build_tool=$(jq -r '.build_tool // ""' /tmp/detect.json)
+          entry_point=$(jq -r '.entry_point // ""' /tmp/detect.json)
+          version=$(jq -r '.version // ""' /tmp/detect.json)
           echo "stack=$stack"        >> "$GITHUB_OUTPUT"
           echo "build_tool=$build_tool" >> "$GITHUB_OUTPUT"
           echo "entry_point=$entry_point" >> "$GITHUB_OUTPUT"
