@@ -1,0 +1,10 @@
+name: Test CI
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Hello from Test CI"
+      - run: ls -la .github/ || true
+      - run: echo "STACK=python PLATFORM=linux VERSION=1.0.0"
