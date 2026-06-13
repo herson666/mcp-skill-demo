@@ -1,12 +1,19 @@
-name: Release Multi-Platform (v1)
+name: Release Multi-Platform
+
 on:
   workflow_dispatch:
     inputs:
       platforms:
+        description: 'Comma-separated list of platforms to build (windows,macos,linux,android,ios or "all")'
         type: string
+        required: true
         default: 'all'
+      version:
+        description: 'Version tag override (leave empty to auto-detect)'
+        required: false
+        default: ''
   push:
-    branches: [main]
+    branches: [main, master]
     tags: ['v*']
 
 permissions:
@@ -14,6 +21,7 @@ permissions:
 
 jobs:
   detect:
+    name: Detect project
     runs-on: ubuntu-latest
     outputs:
       stack: ${{ steps.det.outputs.stack }}
@@ -28,8 +36,9 @@ jobs:
           echo "version=$(echo "$RESULT" | jq -r '.version // "0.0.1"')" >> "$GITHUB_OUTPUT"
 
   parse:
-    runs-on: ubuntu-latest
+    name: Resolve platforms & version
     needs: [detect]
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.p.outputs.version }}
       windows: ${{ steps.p.outputs.windows }}
@@ -41,18 +50,118 @@ jobs:
       - id: p
         run: |
           pl="${{ inputs.platforms }}"
-          [ "$pl" = "all" ] || [ -z "$pl" ] && pl="windows,macos,linux,android,ios"
+          if [ "$pl" = "all" ] || [ -z "$pl" ]; then
+            pl="windows,macos,linux,android,ios"
+          fi
           for p in windows macos linux android ios; do
-            if echo ",$pl," | grep -q ",$p,"; then echo "$p=true" >> "$GITHUB_OUTPUT"
-            else echo "$p=false" >> "$GITHUB_OUTPUT"; fi
+            if echo ",$pl," | grep -q ",$p,"; then
+              echo "$p=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$p=false" >> "$GITHUB_OUTPUT"
+            fi
           done
-          v="${{ needs.detect.outputs.version }}"
+          v="${{ inputs.version }}"
+          [ -z "$v" ] && v="${{ needs.detect.outputs.version }}"
           [ -z "$v" ] && v="0.0.1"
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "parsed: windows=${{ steps.p.outputs.windows }} v=$v"
+          echo "parsed platforms=$pl version=$v"
+
+  build-windows:
+    name: Build (windows)
+    needs: [detect, parse]
+    if: needs.parse.outputs.windows == 'true'
+    runs-on: windows-latest
+    env:
+      STACK: ${{ needs.detect.outputs.stack }}
+      PLATFORM: windows
+      VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: needs.detect.outputs.stack == 'python'
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino'
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: needs.detect.outputs.stack == 'rust'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: needs.detect.outputs.stack == 'go'
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: needs.detect.outputs.stack == 'flutter'
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native'
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: needs.detect.outputs.stack == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-windows
+          path: dist/
+          if-no-files-found: ignore
+
+  build-macos:
+    name: Build (macos)
+    needs: [detect, parse]
+    if: needs.parse.outputs.macos == 'true'
+    runs-on: macos-latest
+    env:
+      STACK: ${{ needs.detect.outputs.stack }}
+      PLATFORM: macos
+      VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: needs.detect.outputs.stack == 'python'
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino'
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: needs.detect.outputs.stack == 'rust'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: needs.detect.outputs.stack == 'go'
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: needs.detect.outputs.stack == 'flutter'
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native'
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: needs.detect.outputs.stack == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-macos
+          path: dist/
+          if-no-files-found: ignore
 
   build-linux:
+    name: Build (linux)
     needs: [detect, parse]
+    if: needs.parse.outputs.linux == 'true'
     runs-on: ubuntu-latest
     env:
       STACK: ${{ needs.detect.outputs.stack }}
@@ -60,6 +169,33 @@ jobs:
       VERSION: ${{ needs.parse.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Python
+        if: needs.detect.outputs.stack == 'python'
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino'
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: needs.detect.outputs.stack == 'rust'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: needs.detect.outputs.stack == 'go'
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: needs.detect.outputs.stack == 'flutter'
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native'
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: needs.detect.outputs.stack == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
       - name: Build
         run: ./.github/scripts/build.sh
       - uses: actions/upload-artifact@v4
@@ -68,8 +204,101 @@ jobs:
           path: dist/
           if-no-files-found: ignore
 
+  build-android:
+    name: Build (android)
+    needs: [detect, parse]
+    if: needs.parse.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    env:
+      STACK: ${{ needs.detect.outputs.stack }}
+      PLATFORM: android
+      VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: needs.detect.outputs.stack == 'python'
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino'
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: needs.detect.outputs.stack == 'rust'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: needs.detect.outputs.stack == 'go'
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: needs.detect.outputs.stack == 'flutter'
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native'
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: needs.detect.outputs.stack == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-android
+          path: dist/
+          if-no-files-found: ignore
+
+  build-ios:
+    name: Build (ios)
+    needs: [detect, parse]
+    if: needs.parse.outputs.ios == 'true'
+    runs-on: macos-latest
+    env:
+      STACK: ${{ needs.detect.outputs.stack }}
+      PLATFORM: ios
+      VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: needs.detect.outputs.stack == 'python'
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino'
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: needs.detect.outputs.stack == 'rust'
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: needs.detect.outputs.stack == 'go'
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: needs.detect.outputs.stack == 'flutter'
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native'
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: needs.detect.outputs.stack == 'dotnet'
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-ios
+          path: dist/
+          if-no-files-found: ignore
+
   release:
-    needs: [detect, parse, build-linux]
+    name: Publish Release
+    needs: [detect, parse, build-windows, build-macos, build-linux, build-android, build-ios]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -77,10 +306,21 @@ jobs:
         with: { path: artifacts/ }
       - name: List artifacts
         run: ls -laR artifacts/ || true
-      - name: Create Release
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.parse.outputs.version }}
           name: Release v${{ needs.parse.outputs.version }}
           generate_release_notes: true
-          files: artifacts/**/*
+          files: |
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+            artifacts/**/*.pkg
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.AppImage
+            artifacts/**/*.apk
+            artifacts/**/*.aab
+            artifacts/**/*.ipa
+            artifacts/**/*.msi
+            artifacts/**/*.tar.gz
