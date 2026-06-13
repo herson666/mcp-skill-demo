@@ -99,12 +99,18 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "resolved_version=$v"
 
-  # ---- 3. Build jobs (5 platforms, YAML anchor to share setup) ----
+  # ---- 3. Build jobs (5 platforms) ----
+  # Note: anchor source (base_build) has a generic build step. Each platform
+  # overrides at the job level: runs-on, if, env.{STACK,PLATFORM,VERSION}.
   build-windows: &base_build
     name: Build (windows)
     needs: [detect, parse]
     if: ${{ needs.parse.outputs.windows == 'true' }}
     runs-on: windows-latest
+    env:
+      STACK: ${{ needs.detect.outputs.stack }}
+      PLATFORM: windows
+      VERSION: ${{ needs.parse.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Python
@@ -136,10 +142,6 @@ jobs:
         with: { dotnet-version: '8.0.x' }
       - name: Build
         run: ./.github/scripts/build.sh
-        env:
-          STACK: ${{ needs.detect.outputs.stack }}
-          PLATFORM: windows
-          VERSION: ${{ needs.parse.outputs.version }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.detect.outputs.stack || 'app' }}-windows
@@ -155,6 +157,42 @@ jobs:
       STACK: ${{ needs.detect.outputs.stack }}
       PLATFORM: macos
       VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: ${{ needs.detect.outputs.stack == 'python' }}
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: ${{ needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino' }}
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: ${{ needs.detect.outputs.stack == 'rust' }}
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: ${{ needs.detect.outputs.stack == 'go' }}
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: ${{ needs.detect.outputs.stack == 'flutter' }}
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: ${{ needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native' }}
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: ${{ needs.detect.outputs.stack == 'dotnet' }}
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-macos
+          path: dist/
+          if-no-files-found: ignore
 
   build-linux:
     <<: *base_build
@@ -165,6 +203,42 @@ jobs:
       STACK: ${{ needs.detect.outputs.stack }}
       PLATFORM: linux
       VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: ${{ needs.detect.outputs.stack == 'python' }}
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: ${{ needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino' }}
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: ${{ needs.detect.outputs.stack == 'rust' }}
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: ${{ needs.detect.outputs.stack == 'go' }}
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: ${{ needs.detect.outputs.stack == 'flutter' }}
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: ${{ needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native' }}
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: ${{ needs.detect.outputs.stack == 'dotnet' }}
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-linux
+          path: dist/
+          if-no-files-found: ignore
 
   build-android:
     <<: *base_build
@@ -175,6 +249,42 @@ jobs:
       STACK: ${{ needs.detect.outputs.stack }}
       PLATFORM: android
       VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: ${{ needs.detect.outputs.stack == 'python' }}
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: ${{ needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino' }}
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: ${{ needs.detect.outputs.stack == 'rust' }}
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: ${{ needs.detect.outputs.stack == 'go' }}
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: ${{ needs.detect.outputs.stack == 'flutter' }}
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: ${{ needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native' }}
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: ${{ needs.detect.outputs.stack == 'dotnet' }}
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-android
+          path: dist/
+          if-no-files-found: ignore
 
   build-ios:
     <<: *base_build
@@ -185,6 +295,42 @@ jobs:
       STACK: ${{ needs.detect.outputs.stack }}
       PLATFORM: ios
       VERSION: ${{ needs.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        if: ${{ needs.detect.outputs.stack == 'python' }}
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Setup Node
+        if: ${{ needs.detect.outputs.stack == 'electron' || needs.detect.outputs.stack == 'node' || needs.detect.outputs.stack == 'node-cli' || needs.detect.outputs.stack == 'neutralino' }}
+        uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Setup Rust
+        if: ${{ needs.detect.outputs.stack == 'rust' }}
+        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Go
+        if: ${{ needs.detect.outputs.stack == 'go' }}
+        uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Setup Flutter
+        if: ${{ needs.detect.outputs.stack == 'flutter' }}
+        uses: subosito/flutter-action@v2
+        with: { flutter-version: '3.24.0' }
+      - name: Setup Java
+        if: ${{ needs.detect.outputs.stack == 'java' || needs.detect.outputs.stack == 'android-native' }}
+        uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - name: Setup .NET
+        if: ${{ needs.detect.outputs.stack == 'dotnet' }}
+        uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Build
+        run: ./.github/scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.detect.outputs.stack || 'app' }}-ios
+          path: dist/
+          if-no-files-found: ignore
 
   # ---- 4. Release job (collects all artifacts) ----
   release:
